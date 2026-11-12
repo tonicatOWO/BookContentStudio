@@ -1,0 +1,71 @@
+name: Desktop preview packages
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  desktop:
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: node node_modules/electron/install.js
+      - run: npm run typecheck
+      - if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-0 xvfb xauth fontconfig fonts-noto-cjk
+          npx playwright install --with-deps --no-shell chromium
+      - if: runner.os == 'Windows'
+        run: npx playwright install --no-shell chromium
+      - run: npm run build:portable
+      - run: npm run build:desktop
+      - name: Package with matching portable runtime
+        shell: bash
+        run: |
+          runtime=$(find dist -maxdepth 1 -type d -name 'books-scraper-*' -print -quit)
+          node scripts/package-desktop.mjs --runtime "$runtime"
+      - name: Desktop UI tests (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          export BOOKS_TEST_PACKAGE=$(find dist -maxdepth 1 -type d -name 'books-desktop-*' -print -quit)
+          xvfb-run -a node tests/desktop.mjs
+      - name: Desktop UI tests (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $env:BOOKS_TEST_PACKAGE = (Get-ChildItem dist -Directory -Filter 'books-desktop-*' | Select-Object -First 1).FullName
+          node tests/desktop.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Archive Linux desktop
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          bundle=$(find dist -maxdepth 1 -type d -name 'books-desktop-*' -print -quit)
+          tar -czf dist/books-desktop-linux-x64.tar.gz -C dist "$(basename "$bundle")"
+      - name: Archive Windows desktop
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path dist/books-desktop-windows-x64-* -DestinationPath dist/books-desktop-windows-x64.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: books-desktop-${{ runner.os }}-x64
+          path: |
+            dist/books-desktop-*.tar.gz
+            dist/books-desktop-*.zip
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: desktop-evidence-${{ runner.os }}
+          path: artifacts/electron-20261112/desktop-test-*/

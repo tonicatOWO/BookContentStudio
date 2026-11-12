@@ -1,0 +1,70 @@
+name: Portable packages
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: npm run typecheck
+      - if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fontconfig fonts-noto-cjk
+          npx playwright install --with-deps --no-shell chromium
+      - if: runner.os == 'Windows'
+        run: npx playwright install --no-shell chromium
+      - run: npm run build:portable
+      - name: Test Windows bundle outside checkout and browser cache
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $bundle = Get-ChildItem dist -Directory | Select-Object -First 1
+          $target = Join-Path $env:RUNNER_TEMP 'portable test 中文'
+          Copy-Item $bundle.FullName $target -Recurse
+          $env:PLAYWRIGHT_BROWSERS_PATH = Join-Path $env:RUNNER_TEMP 'empty-browser-cache'
+          & "$target/books-scraper.cmd" --self-test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & "$target/books-scraper.cmd" --help
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Test Linux bundle on minimal Ubuntu, without Node or browser packages
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -eu
+          bundle=(dist/books-scraper-linux-x64-*)
+          for image in ubuntu:22.04 ubuntu:24.04; do
+            docker run --rm --network none --shm-size=1g \
+              -v "$PWD/${bundle[0]}:/portable test 中文:ro" "$image" \
+              '/portable test 中文/books-scraper' --self-test
+          done
+          env PLAYWRIGHT_BROWSERS_PATH=/nonexistent "${bundle[0]}/books-scraper" --help
+      - name: Archive Linux
+        if: runner.os == 'Linux'
+        run: tar -czf dist/books-scraper-linux-x64.tar.gz -C dist "$(basename "$(find dist -maxdepth 1 -type d -name 'books-scraper-linux-x64-*' -print -quit)")"
+      - name: Archive Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path dist/books-scraper-windows-x64-* -DestinationPath dist/books-scraper-windows-x64.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: books-scraper-${{ runner.os }}-x64
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+          if-no-files-found: error

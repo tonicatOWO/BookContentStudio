@@ -1,0 +1,31 @@
+{
+  "name": "books-playwright-scraper",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "build/desktop/main.js",
+  "description": "Single-product Books.com.tw HTML fragment and image extractor",
+  "scripts": {
+    "scrape": "tsx src/cli.ts",
+    "inspect": "tsx src/inspect.ts",
+    "search": "tsx src/search-cli.ts",
+    "typecheck": "tsc --noEmit",
+    "build:portable": "node scripts/build-portable.mjs",
+    "build:desktop": "node scripts/build-desktop.mjs",
+    "desktop": "npm run build:desktop && electron .",
+    "package:desktop": "npm run build:desktop && node scripts/package-desktop.mjs",
+    "test:desktop": "npm run build:desktop && node tests/desktop.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "playwright": "^1.56.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "electron": "^45.3.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
+  }
+}

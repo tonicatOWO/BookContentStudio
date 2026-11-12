@@ -1,0 +1,25 @@
+node_modules/
+output/
+dist/
+build/
+
+# Local packaged desktop previews and archives
+books-desktop-*/
+*.tar.gz
+*.sha256
+
+# Local configuration and logs
+.env
+.env.*
+*.log
+
+# Session-local agent state and generated evidence
+.memory/
+.agents/
+.codex/
+.codegraph/
+artifacts/
+
+# Temporary/editor files
+.DS_Store
+*.swp
