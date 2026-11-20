@@ -1,0 +1,59 @@
+name: Publish desktop preview
+
+on:
+  workflow_run:
+    workflows: ["Desktop preview packages"]
+    branches: [trunk]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Successful desktop build run ID on trunk
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: desktop-release-${{ inputs.run_id || github.event.workflow_run.id }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RUN_ID: ${{ inputs.run_id || github.event.workflow_run.id }}
+    steps:
+      - name: Verify build and publish its packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RUN_ID" =~ ^[0-9]+$ ]]
+          build=$(gh api "repos/$GH_REPO/actions/runs/$RUN_ID")
+          jq -e --arg repo "$GH_REPO" '
+            .path == ".github/workflows/desktop.yml" and .head_branch == "trunk" and
+            .head_repository.full_name == $repo and .event == "workflow_dispatch" and
+            .conclusion == "success"' <<< "$build" > /dev/null
+          sha=$(jq -r .head_sha <<< "$build")
+          number=$(jq -r .run_number <<< "$build")
+          attempt=$(jq -r .run_attempt <<< "$build")
+          tag="desktop-preview-$number.$attempt"
+          if [[ "$(gh release view "$tag" --json isDraft --jq .isDraft 2>/dev/null || true)" == false ]]; then
+            exit 0
+          fi
+          gh run download "$RUN_ID" -n books-desktop-Windows-x64 -D windows
+          gh run download "$RUN_ID" -n books-desktop-Linux-x64 -D linux
+          assets=(windows/BookContentStudio-Setup-x64.exe windows/books-desktop-windows-x64.zip linux/books-desktop-linux-x64.tar.gz)
+          for asset in "${assets[@]}"; do test -s "$asset"; done
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" --target "$sha" --draft --prerelease \
+              --title "BookContentStudio 桌面預覽版 $number.$attempt" \
+              --notes "Windows 可下載安裝程式（.exe）或免安裝版（.zip）。Linux 請下載 .tar.gz。[打包與測試紀錄](https://github.com/$GH_REPO/actions/runs/$RUN_ID)"
+          fi
+          gh release upload "$tag" "${assets[@]}" --clobber
+          gh release edit "$tag" --draft=false
