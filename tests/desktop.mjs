@@ -40,6 +40,7 @@ try {
   await app.evaluate(({ dialog, shell }, { fixture, output }) => {
     process.execArgv.push("--import", fixture);
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [output] });
+    dialog.showMessageBox = async () => ({ response: 0, checkboxChecked: false });
     shell.openPath = async (target) => { globalThis.lastOpenedFolder = target; return ""; };
   }, { fixture, output });
   await page.locator("#choose-folder").click();
@@ -58,7 +59,12 @@ try {
   assert.equal(await page.locator("#selected-title").textContent(), "你的名字。紀念版");
   await page.screenshot({ path: path.join(evidence, "02-results.png") });
   for (let index = 0; index < 2; index++) {
+    const previousStatus = await page.locator("#status").textContent();
     await page.locator("#download").click();
+    await page.waitForFunction(previous => {
+      const status = document.querySelector("#status").textContent;
+      return status !== previous && (status.startsWith("已儲存") || document.querySelector("#status-box.error"));
+    }, previousStatus, { timeout: 30000 });
     await page.locator("#cancel").waitFor({ state: "hidden", timeout: 30000 });
     assert.match(await page.locator("#status").textContent(), /2\/2 張書圖/);
   }
