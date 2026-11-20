@@ -1,6 +1,5 @@
-import { mkdir } from "node:fs/promises";
+import { mkdir, mkdtemp } from "node:fs/promises";
 import path from "node:path";
-import { productId } from "../options.js";
 import { openBrowser, type BrowserSession } from "../browser.js";
 import { searchBooks } from "../search.js";
 import { scrapeBook } from "../scrape.js";
@@ -31,11 +30,10 @@ process.on("message", async (request: WorkerRequest | { kind: "cancel" }) => {
       const books = await searchBooks(session.page, request.query, 20, timeout, request.headed, report);
       outcome = { type: "results", books };
     } else {
-      // Desktop output uses one predictable directory per product.
       await mkdir(request.out, { recursive: true });
-      const out = path.join(request.out, `book-${productId(request.url)}`);
+      const out = await mkdtemp(path.join(request.out, "book-"));
       const result = await scrapeBook(session, {
-        url: request.url, out: request.out, outputDir: out, headed: request.headed, timeout: request.timeout ?? 120000,
+        url: request.url, out, headed: request.headed, timeout: request.timeout ?? 120000,
         selector: "#thumbnail", maxImages: 60,
       }, report);
       outcome = { type: "saved", result };
