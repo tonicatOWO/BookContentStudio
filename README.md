@@ -59,7 +59,9 @@ docker run --rm \
   dist/books-scraper-linux-x64-2026-11-12-search
 ```
 
-Windows 需在 Windows 建置並提供 Windows CLI 可攜包，產生 `books-desktop.cmd` 啟動器。[Desktop CI](.github/workflows/desktop.yml) 可手動執行建置與 UI 測試；此次未觸發遠端工作流程。
+桌面版由 GitHub Actions 建置。Codeberg 的 `trunk` 同步到 GitHub 預設分支後，在 **Actions → Desktop preview packages → Run workflow** 選擇 `trunk` 執行。工作流程會在 Windows 和 Ubuntu 分別打包並執行桌面 UI 測試。
+
+建置成功後，在該次執行頁面的 **Artifacts** 下載 `books-desktop-Windows-x64`，解壓後可選擇 `BookContentStudio-Setup-x64.exe` 使用安裝精靈，或解壓便攜版 ZIP 後執行 `books-desktop.cmd`。Linux 套件在 `books-desktop-Linux-x64`。詳見[桌面版建置流程](.github/workflows/desktop.yml)。
 
 ```bash
 npm run test:desktop

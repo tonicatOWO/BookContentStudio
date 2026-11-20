@@ -58,12 +58,19 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: Compress-Archive -Path dist/books-desktop-windows-x64-* -DestinationPath dist/books-desktop-windows-x64.zip
+      - name: Build Windows setup wizard
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $bundle = (Get-ChildItem dist -Directory -Filter 'books-desktop-windows-x64-*' | Select-Object -First 1).FullName
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DBundleDir=$bundle" scripts/windows-setup.iss
       - uses: actions/upload-artifact@v4
         with:
           name: books-desktop-${{ runner.os }}-x64
           path: |
             dist/books-desktop-*.tar.gz
             dist/books-desktop-*.zip
+            dist/BookContentStudio-Setup-x64.exe
       - uses: actions/upload-artifact@v4
         if: always()
         with:
