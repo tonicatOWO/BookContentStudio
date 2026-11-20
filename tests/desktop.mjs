@@ -6,7 +6,9 @@ import { createRequire } from "node:module";
 import { _electron as electron } from "playwright";
 
 const require = createRequire(import.meta.url);
-const evidence = await mkdtemp(path.resolve("artifacts/electron-20261112/desktop-test-"));
+const evidenceRoot = path.resolve("artifacts/electron-20261112");
+await mkdir(evidenceRoot, { recursive: true });
+const evidence = await mkdtemp(path.join(evidenceRoot, "desktop-test-"));
 const output = path.join(evidence, "下載資料 中文");
 await mkdir(output);
 const fixture = pathToFileURL(path.resolve("tests/desktop-fixture.mjs")).href;
